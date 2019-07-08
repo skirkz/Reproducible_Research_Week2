@@ -1,0 +1,147 @@
+---
+title: "Reproducible Research Week 2"
+author: "Steve Z"
+date: "July 7, 2019"
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This assignemnt will reproduce the the Activity Tracker data analysis
+First load data to a table 
+
+```{r}
+setwd("D:/Rstudio")
+library("data.table")
+library(ggplot2)
+library(dplyr)
+
+## load data from csv file (downloaded and unzipped previously)
+
+act <- read.csv("data/activity.csv")
+
+## view data 
+
+summary(act)
+head(act)
+
+```
+
+Now remove NA values (missing values) so we can do calculations and perfrom groupings
+Find mean total number of steps per day
+
+```{r}
+act_nona <- na.omit(act)
+act_nona <- na.omit(act)
+
+act_day <- group_by(act_nona, date)
+
+act_day <- summarize(act_day, steps=sum(steps))
+
+summary(act_day)
+
+```
+
+histogram of the number of steps taken each day. 
+
+```{r}
+qplot(steps, data=act_day)
+
+```
+
+Calculate the mean and median total number of steps taken per day
+
+```{r}
+mean(act_day$steps)
+
+median(act_day$steps)
+
+```
+
+What is the AVG DAily Activity Pattern?
+
+```{r}
+## create a time series plot of 5 mintute interval (x-axis) and avg number of steps taken per day (y-axis)
+
+act_int <- group_by(act_nona, interval)
+act_int <- summarize(act_int, steps=mean(steps))
+
+ggplot(act_int, aes(interval, steps)) + geom_line()
+
+```
+Which 5 minute interval, on average across all days in dataset contains the maximum number of steps?
+
+```{r}
+act_int[act_int$steps==max(act_int$steps),]
+
+```
+Calculate and report total number of missing values in the dataset (rows with NAs)
+
+```{r}
+nrow(act)-nrow(act_nona)
+
+```
+
+Devise a strategy for filling in all of the missing values in the dataset
+replace missing values with mean of steps of that day
+```{r}
+names(act_int)[2] <- "mean.steps"
+act_impute <- merge(act,act_int)
+
+```
+
+create a new dataset that combines the original dataset with missing data filled in
+
+```{r}
+act_impute$steps[is.na(act_impute$steps)] <- act_impute$mean.steps[is.na(act_impute$steps)]
+
+```
+
+Make a histogram with the total number of steps taken each day and calcualte and report the mean and median total number of steps taken per day.   Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?
+
+```{r}
+act_day_imp <- group_by(act_impute, date)
+act_day_imp <- summarize(act_day_imp, steps=sum(steps))
+
+qplot(steps, data=act_day_imp)
+
+mean(act_day_imp$steps)
+median(act_day_imp$steps)
+
+```
+The mean appears unchanged, the median is less
+
+
+Are there any Activity Patterns between Weekdays and weekends?
+
+```{r}
+## I have a added a day of week field and classified as weekend or weekday
+
+act_impute$dayofweek <- weekdays(as.Date(act_impute$date))
+act_impute$weekend <- as.factor(act_impute$dayofweek=="Saturday"|act_impute$dayofweek=="Sunday")
+levels(act_impute$weekend) <- c("Weekday","Weekend")
+
+```
+
+Make a panel plot containing a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis). 
+
+```{r}
+act_weekday <- act_impute[act_impute$weekend=="Weekday",]
+act_weekend <- act_impute[act_impute$weekend=="Weekend",]
+
+act_int_weekday <- group_by(act_weekday, interval)
+act_int_weekday <- summarize(act_int_weekday, steps=mean(steps))
+act_int_weekday$weekend <- "Weekday"
+
+act_int_weekend <- group_by(act_weekend, interval)
+act_int_weekend <- summarize(act_int_weekend, steps=mean(steps))
+act_int_weekend$weekend <- "Weekend"
+
+act_int <-rbind(act_int_weekday, act_int_weekend)
+act_int$weekend <- as.factor(act_int$weekend)
+ggplot(act_int, aes(interval, steps)) + geom_line() + facet_grid(weekend ~ .)
+```
